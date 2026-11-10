@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=kotoview
+Comment=Image viewer 
+Exec=/usr/bin/kotoview %F
+Icon=kotoview
+Terminal=false
+Type=Application
+Categories=Utility;TextEditor;
+MimeType=inode/directory;application/zip;
+StartupWMClass=kotoview

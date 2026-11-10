@@ -1,0 +1,105 @@
+[package]
+name = "kotoview"
+authors = ["koto2730oss"]
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.36.1"
+egui = "0.36.1"
+rfd = "0.17.2"
+open = "5.4.0"
+webbrowser = "1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+walkdir = "2.5.0"
+zip = "2.4.2"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
+jpeg-decoder = "0.3.2"
+dirs = "6.0.0"
+
+# Linux arm64 (aarch64) 向け deb パッケージ設定 (amd64 と同等の構成)
+[package.metadata.deb.variants.arm64]
+name = "kotoview"  # variant指定時もパッケージ名が kotoview-arm64 に変化しないよう明示
+maintainer = "koto2730oss"
+depends = "$auto"
+section = "editors"
+priority = "optional"
+assets = [
+    # aarch64 向けクロスコンパイルバイナリのパス
+    ["target/aarch64-unknown-linux-gnu/release/kotoview", "usr/bin/", "755"],
+    ["assets/kotoview.desktop", "usr/share/applications/", "644"],
+    ["icon.png", "kotoview.png", "644"],
+]
+
+# --variant aarch64 でもビルド可能にするためのエイリアス
+[package.metadata.deb.variants.aarch64]
+name = "kotoview"
+maintainer = "koto2730oss"
+depends = "$auto"
+section = "editors"
+priority = "optional"
+assets = [
+    # aarch64 向けクロスコンパイルバイナリのパス
+    ["target/aarch64-unknown-linux-gnu/release/kotoview", "usr/bin/", "755"],
+    ["assets/kotoview.desktop", "usr/share/applications/", "644"],
+    ["icon.png", "kotoview.png", "644"],
+]
+
+[target."cfg(windows)".build-dependencies]
+winres = "0.1.12"
+
+[package.metadata.packager]
+product-name = "kotoview"
+authors = ["koto2730oss"]
+identifier = "com.ictglabo.kotoview"
+icons = ["icon.ico", "app_icon.icns", "icon-source.png"]
+
+[package.metadata.packager.nsis]
+# インストール時・アンインストール時に実行される追加NSISセクション
+preinstall-section = '''
+Section "ContextMenuAndPath"
+  ; 1. ファイルを右クリック -> "Open with kotoview"
+  WriteRegStr SHCTX "Software\Classes\*\shell\kotoview" "" "Open with kotoview"
+  WriteRegStr SHCTX "Software\Classes\*\shell\kotoview" "Icon" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\",0"
+  WriteRegStr SHCTX "Software\Classes\*\shell\kotoview\command" "" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\" $\"%1$\""
+
+  ; 2. フォルダを右クリック -> "Open with kotoview"
+  WriteRegStr SHCTX "Software\Classes\Directory\shell\kotoview" "" "Open with kotoview"
+  WriteRegStr SHCTX "Software\Classes\Directory\shell\kotoview" "Icon" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\",0"
+  WriteRegStr SHCTX "Software\Classes\Directory\shell\kotoview\command" "" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\" $\"%1$\""
+
+  ; 3. フォルダの背景（空白部分）を右クリック -> "Open with kotoview"
+  WriteRegStr SHCTX "Software\Classes\Directory\Background\shell\kotoview" "" "Open with kotoview"
+  WriteRegStr SHCTX "Software\Classes\Directory\Background\shell\kotoview" "Icon" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\",0"
+  WriteRegStr SHCTX "Software\Classes\Directory\Background\shell\kotoview\command" "" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\" $\"%V$\""
+
+  ; 4. ユーザー環境変数 Path に $INSTDIR を重複なしで追加
+  nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -WindowStyle Hidden -Command "$p = [Environment]::GetEnvironmentVariable(\"Path\", \"User\"); $dir = \"$INSTDIR\"; if (-not (($p -split \";\") -contains $dir)) { [Environment]::SetEnvironmentVariable(\"Path\", ($p.TrimEnd(\";\") + \";\" + $dir).TrimStart(\";\"), \"User\") }"'
+  SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
+SectionEnd
+
+Section "un.ContextMenuAndPath"
+  ; アンインストール時にコンテキストメニューと Path をクリーンアップ
+  DeleteRegKey SHCTX "Software\Classes\*\shell\kotoview"
+  DeleteRegKey SHCTX "Software\Classes\Directory\shell\kotoview"
+  DeleteRegKey SHCTX "Software\Classes\Directory\Background\shell\kotoview"
+
+  nsExec::ExecToLog 'powershell -NoProfile -NonInteractive -WindowStyle Hidden -Command "$p = [Environment]::GetEnvironmentVariable(\"Path\", \"User\"); $dir = \"$INSTDIR\"; if ($p) { $new = (($p -split \";\") | Where-Object { $_ -and ($_ -ne $dir) }) -join \";\"; [Environment]::SetEnvironmentVariable(\"Path\", $new, \"User\") }"'
+  SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=5000
+SectionEnd
+'''
+
+[package.metadata.deb]
+maintainer = "koto2730oss"
+depends = "$auto"
+section = "viewer"
+priority = "optional"
+assets = [
+    # 実行バイナリ -> /usr/bin/kotoview (自動的に PATH が通る)
+    ["target/release/kotoview", "usr/bin/", "755"],
+    # デスクトップエントリ -> ファイル・フォルダ右クリックメニュー登録
+    ["assets/kotoview.desktop", "usr/share/applications/", "644"],
+    # アプリアイコン
+    ["icon-source.png", "usr/share/icons/hicolor/256x256/apps/kotoview.png", "644"],
+]
