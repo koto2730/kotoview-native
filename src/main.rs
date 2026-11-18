@@ -30,14 +30,32 @@ fn load_icon() -> egui::IconData {
     }
 }
 
+/// egui-wgpu's default device request asks for fixed limits
+/// (max_inter_stage_shader_variables = 16, max_texture_dimension_2d = 8192)
+/// that some GPUs/drivers (e.g. ARM devices) don't offer, making device
+/// creation fail. Keep the default request but clamp every limit to what the
+/// adapter supports, so adapters that allow the full values still get them.
+fn limit_device_to_adapter(options: &mut eframe::NativeOptions) {
+    use std::sync::Arc;
+    if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup {
+        let base = Arc::clone(&setup.device_descriptor);
+        setup.device_descriptor = Arc::new(move |adapter| {
+            let mut desc = base(adapter);
+            desc.required_limits = desc.required_limits.or_worse_values_from(&adapter.limits());
+            desc
+        });
+    }
+}
+
 fn main() -> eframe::Result<()> {
     let initial_target = cli::resolve_initial_target();
-    let native_options = eframe::NativeOptions {
+    let mut native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 800.0])
             .with_icon(load_icon()),
         ..Default::default()
     };
+    limit_device_to_adapter(&mut native_options);
     eframe::run_native(
         "KotoView",
         native_options,
